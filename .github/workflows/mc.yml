@@ -1,0 +1,85 @@
+name: Minecraft Server (4h session)
+
+on:
+  workflow_dispatch: {}
+  # Tuỳ chọn: tự chạy khi push, hoặc bỏ hẳn nếu chỉ muốn chain qua dispatch
+  # schedule:
+  #   - cron: '0 */4 * * *'
+
+permissions:
+  actions: write   # cần để tự gọi API dispatch lại chính workflow này
+  contents: read
+
+concurrency:
+  group: mc-server
+  cancel-in-progress: false  # không cho 2 phiên chạy chồng nhau
+
+jobs:
+  run-server:
+    runs-on: ubuntu-latest
+    timeout-minutes: 260   # buffer an toàn, script bên trong tự giới hạn đúng 4h
+    env:
+      SESSION_HOURS: "4"
+      BACKUP_INTERVAL_SEC: "60"
+      RCON_PASSWORD: ${{ secrets.RCON_PASSWORD }}
+      DRIVE_REMOTE: "gdrive:minecraft-backups"   # tên remote:thư_mục trong rclone.conf
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Cài rclone, zip, python deps
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y zip unzip
+          curl https://rclone.org/install.sh | sudo bash
+          pip install mcrcon --break-system-packages
+
+      - name: Ghi cấu hình rclone từ secret
+        run: |
+          mkdir -p ~/.config/rclone
+          echo "${{ secrets.RCLONE_CONF_BASE64 }}" | base64 -d > ~/.config/rclone/rclone.conf
+
+      - name: Kết nối Tailscale
+        uses: tailscale/github-action@v2
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          # Nếu dùng auth key thay vì OAuth client, thay 2 dòng trên bằng:
+          # authkey: ${{ secrets.TS_AUTHKEY }}
+          tags: tag:mc-server
+          hostname: gh-mc-server
+
+      - name: In địa chỉ Tailscale để kết nối
+        run: |
+          echo "IP Tailscale của server (dùng để join game qua cổng 25565):"
+          tailscale ip -4
+
+      - name: Tải bản backup gần nhất (nếu có) và giải nén
+        run: bash scripts/restore.sh
+
+      - name: Cài đặt / khôi phục MCSManager
+        run: bash scripts/setup-mcsmanager.sh
+
+      - name: Chạy vòng lặp backup định kỳ (nền)
+        run: nohup bash scripts/backup-loop.sh > backup.log 2>&1 & disown
+
+      - name: Khởi động server Minecraft (giới hạn đúng 4 tiếng)
+        run: bash scripts/start-server.sh
+
+      - name: Backup lần cuối
+        if: always()
+        run: bash scripts/final-backup.sh
+
+      - name: Trigger lại phiên tiếp theo
+        if: always()
+        run: |
+          curl -X POST \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/workflows/minecraft-server.yml/dispatches" \
+            -d "{\"ref\":\"${{ github.ref_name }}\"}"
