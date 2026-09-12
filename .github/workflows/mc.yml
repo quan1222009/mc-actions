@@ -47,10 +47,7 @@ jobs:
       - name: Kết nối Tailscale
         uses: tailscale/github-action@v2
         with:
-          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
-          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
-          # Nếu dùng auth key thay vì OAuth client, thay 2 dòng trên bằng:
-          # authkey: ${{ secrets.TS_AUTHKEY }}
+          authkey: ${{ secrets.TS_AUTHKEY }}
           tags: tag:mc-server
           hostname: gh-mc-server
 
