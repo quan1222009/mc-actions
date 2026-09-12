@@ -13,11 +13,24 @@ if rclone lsf "$DRIVE_REMOTE/full-latest.zip" >/dev/null 2>&1; then
   echo "Đã khôi phục toàn bộ server."
 else
   echo "Chưa có backup nào, đây là phiên khởi tạo mới."
+  
+# Tải server jar (Paper) lần đầu - dùng PaperMC API v3
+  UA="mc-actions/1.0 (https://github.com/${GITHUB_REPOSITORY})"
 
-  # Tải server jar (Paper) lần đầu - đổi URL/version theo nhu cầu
-  BUILD=$(curl -s https://api.papermc.io/v2/projects/paper | python3 -c "import sys,json;print(json.load(sys.stdin)['versions'][-1])")
-  LATEST_BUILD=$(curl -s "https://api.papermc.io/v2/projects/paper/versions/$BUILD" | python3 -c "import sys,json;print(json.load(sys.stdin)['builds'][-1])")
-  curl -o server.jar "https://api.papermc.io/v2/projects/paper/versions/$BUILD/builds/$LATEST_BUILD/downloads/paper-$BUILD-$LATEST_BUILD.jar"
+  MC_VERSION=$(curl -s -H "User-Agent: $UA" https://fill.papermc.io/v3/projects/paper \
+    | python3 -c "import sys,json;d=json.load(sys.stdin);v=d['versions'];k=list(v.keys())[0];print(v[k][0])")
+
+  BUILDS_JSON=$(curl -s -H "User-Agent: $UA" "https://fill.papermc.io/v3/projects/paper/versions/$MC_VERSION/builds")
+
+  DOWNLOAD_URL=$(echo "$BUILDS_JSON" | python3 -c "
+import sys, json
+builds = json.load(sys.stdin)
+stable = [b for b in builds if b['channel'] == 'STABLE']
+pick = stable[0] if stable else builds[0]
+print(pick['downloads']['server:default']['url'])
+")
+
+  curl -o server.jar "$DOWNLOAD_URL"
 
   echo "eula=true" > eula.txt
   mkdir -p plugins
