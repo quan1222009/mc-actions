@@ -1,0 +1,3 @@
+# Mỗi dòng 1 URL trực tiếp tới file .jar của plugin
+# Ví dụ:
+# https://download.luckperms.net/1550/bukkit/loader/LuckPerms-Bukkit-5.4.130.jar
