@@ -13,8 +13,8 @@ if rclone lsf "$DRIVE_REMOTE/full-latest.zip" >/dev/null 2>&1; then
   echo "Đã khôi phục toàn bộ server."
 else
   echo "Chưa có backup nào, đây là phiên khởi tạo mới."
-  
-# Tải server jar (Paper) lần đầu - dùng PaperMC API v3
+
+  # Tải server jar (Paper) lần đầu - dùng PaperMC API v3
   UA="mc-actions/1.0 (https://github.com/${GITHUB_REPOSITORY})"
 
   MC_VERSION=$(curl -s -H "User-Agent: $UA" https://fill.papermc.io/v3/projects/paper \
@@ -48,6 +48,7 @@ if [ -f "../plugins.txt" ]; then
   mkdir -p plugins
   while IFS= read -r url; do
     [ -z "$url" ] && continue
+    [[ "$url" == \#* ]] && continue
     filename=$(basename "$url")
     if [ ! -f "plugins/$filename" ]; then
       echo "Tải plugin: $filename"
